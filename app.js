@@ -259,13 +259,14 @@ app.get(
     console.log(followingList2);
     if (user_id in followingList2) {
       const bringLikesQuery = `
-        select username from User where user_id in
+        select name, reply from Reply left join User on Reply.user_id =
+        User.user_id where Reply.user_id in
         (select user_id from Reply where tweet_id = ${tweetId});`;
       const allUsername = await db.all(bringLikesQuery);
-      const allUsernameUpdated = allUsername.map((each) => {
-        return each.username;
-      });
-      res.json({ replies: allUsernameUpdated });
+      //   const allUsernameUpdated = allUsername.map((each) => {
+      //     return each.name;
+      //   });
+      res.json({ replies: allUsername });
     } else {
       res.status(401);
       res.send("Invalid Request");
@@ -279,35 +280,25 @@ app.get("/user/tweets/", authenticationFunction, async (req, res) => {
   const bringUserQuery = `
     select user_id from User where username = '${username}';`;
   const { user_id } = await db.get(bringUserQuery);
-  //   console.log(user_id);
-  const bringAllTweets = `
-    select tweet_id, tweet, date_time from Tweet where user_id = ${user_id};`;
-  const tweetData = await db.all(bringAllTweets);
-  //   console.log(tweetData);
-  const bringLikesQuery = `
-    select Tweet.tweet_id,Tweet.tweet, count(*) as likes from Tweet left join Like on Tweet.tweet_id
-    = Like.tweet_id where Tweet.tweet_id in 
-    (select tweet_id from Tweet where user_id = ${user_id}) group by Tweet.tweet;`;
-  const bringRepliesQuery = `
-    select tweet, count(reply_id) as replies from Tweet left join Reply on Tweet.tweet_id
-    = Reply.tweet_id where Tweet.tweet_id in 
-    (select tweet_id from Tweet where user_id = ${user_id}) group by Tweet.tweet;`;
-  const likesData = await db.all(bringLikesQuery);
-  //   console.log(likesData);
-  const repliesData = await db.all(bringRepliesQuery);
-  //   console.log(repliesData);
-  let counter = 0;
-  const dataList = tweetData.map((eachItem) => {
-    let temp = {
-      tweet: eachItem.tweet,
-      likes: likesData[counter]["likes"],
-      replies: repliesData[counter]["replies"],
-      dateTime: eachItem.date_time,
-    };
-    counter = counter + 1;
-    return temp;
-  });
-  res.json(dataList);
+  const tweetsQuery = `
+    SELECT
+    tweet,
+    (
+    SELECT COUNT(like_id)
+    FROM like
+    WHERE tweet_id=tweet.tweet_id
+    ) AS likes,
+    (
+    SELECT COUNT(reply_id)
+    FROM reply
+    WHERE tweet_id=tweet.tweet_id
+    ) AS replies,
+    date_time AS dateTime
+    FROM tweet
+    WHERE user_id= ${user_id}
+    `;
+  const dataList2 = await db.all(tweetsQuery);
+  res.json(dataList2);
 });
 
 //api 10
@@ -347,7 +338,7 @@ app.delete("/tweets/:tweetId/", authenticationFunction, async (req, res) => {
     res.send("Tweet Removed");
   } else {
     res.status(401);
-    res.json("Invalid Request");
+    res.send("Invalid Request");
   }
 });
 
