@@ -240,37 +240,33 @@ app.get(
   authenticationFunction,
   async (req, res) => {
     const { tweetId } = req.params;
-    const requiredTweetQuery = `select * from Tweet where tweet_id = ${tweetId};`;
-    const requiredTweet = await db.get(requiredTweetQuery);
-    console.log(requiredTweet);
-    const { user_id } = requiredTweet;
     const username = req.username;
     const bringUserId = `
         select user_id from User where username like '${username}';`;
     let user_id_WhichRequested = await db.get(bringUserId);
     user_id_WhichRequested = user_id_WhichRequested.user_id;
-    console.log(user_id_WhichRequested);
-    const FollowingsListOfUser = `
-            select following_user_id from Follower where 
-            follower_user_id = ${user_id_WhichRequested};`;
-    let followingList = await db.all(FollowingsListOfUser);
-    console.log(followingList);
-    let followingList2 = followingList.map((each) => each.following_user_id);
-    console.log(followingList2);
-    if (user_id in followingList2) {
-      const bringLikesQuery = `
-        select name, reply from Reply left join User on Reply.user_id =
-        User.user_id where Reply.user_id in
-        (select user_id from Reply where tweet_id = ${tweetId});`;
-      const allUsername = await db.all(bringLikesQuery);
-      //   const allUsernameUpdated = allUsername.map((each) => {
-      //     return each.name;
-      //   });
-      res.json({ replies: allUsername });
-    } else {
+
+    //newCode
+    const getFollowingQuery = `
+      SELECT distinct(tweet_id) FROM
+        Follower INNER JOIN Tweet
+        ON Follower.following_user_id=Tweet.user_id
+      Where Tweet.tweet_id = ${tweetId} AND Follower.follower_user_id = ${user_id_WhichRequested};`;
+    const result = await db.get(getFollowingQuery);
+    if (result === undefined) {
+      //If there is no results found then the request is invalid
       res.status(401);
       res.send("Invalid Request");
+    } else {
+      const tweetInfoQuery = `
+       SELECT
+        name,reply
+       FROM Reply NATURAL JOIN User
+       WHERE tweet_id= ${tweetId};`; //Getting the name and replies of the tweet.
+      const dbResponse = await db.all(tweetInfoQuery);
+      res.json({ replies: dbResponse }); //Sending response as given in the description.
     }
+    //newCodeEnded
   }
 );
 
